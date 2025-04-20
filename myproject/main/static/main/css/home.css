@@ -1,0 +1,98 @@
+/* Общие настройки */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+/* Навигация */
+nav {
+  background: #eee;
+  padding: 10px;
+  margin-bottom: 20px;
+  text-align: center; /* центрируем ссылки */
+}
+
+nav a {
+  color: #333; /* сразу видимый цвет */
+  margin: 0 12px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: color 0.2s, transform 0.2s;
+}
+
+nav a:hover {
+  color: #000;
+  transform: scale(1.05);
+}
+
+/* Контейнер с «красивой коробочкой» */
+.container {
+  max-width: 800px;
+  margin: 0 auto;              /* по центру страницы */
+  background: #fff;            /* белый фон */
+  border-radius: 8px;          /* скруглённые края */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+/* Заголовки и текст внутри */
+.container h1,
+.container h2,
+.container p,
+.container ul {
+  margin-bottom: 1em;
+  line-height: 1.5;
+}
+
+/* Кнопки внутри контейнера */
+.container button {
+  display: inline-block;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: #ddd;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s, transform 0.2s;
+  color: #333;
+}
+
+.container button:hover {
+  background-color: #ccc;
+  transform: scale(1.05);
+}
+
+/* Списки бронирований и ресторанов */
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+ul li {
+  margin-bottom: 0.75em;
+}
+
+/* Формы */
+form input,
+form select,
+form textarea {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 1em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.5em;
+  font-weight: bold;
+}
+

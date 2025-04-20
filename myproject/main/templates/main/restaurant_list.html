@@ -1,0 +1,12 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+    <h2>Список ресторанов</h2>
+    <ul>
+        {% for restaurant in restaurants %}
+            <li><strong>{{ restaurant.name }}</strong> — {{ restaurant.address }}</li>
+        {% empty %}
+            <li>Нет ресторанов для отображения</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

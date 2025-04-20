@@ -1,0 +1,34 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Booking{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'main/css/home.css' %}">
+</head>
+<body>
+  <!-- Вот тут наше Главное Меню -->
+  <nav style="background:#eee; padding:10px; margin-bottom:20px;">
+    <a href="{% url 'home' %}">🏠 Главная</a> |
+    <a href="{% url 'restaurant_list' %}">🍽️ Рестораны</a> |
+    <a href="{% url 'reserve' %}">➕ Бронирование</a> |
+    <a href="{% url 'my_reservations' %}">📋 Мои брони</a>
+    {% if user.is_authenticated %}
+      | <form method="post" action="{% url 'logout' %}" style="display:inline; margin:0; padding:0;">
+  {% csrf_token %}
+  <button type="submit" style="background:none; border:none; cursor:pointer; font:inherit; color:inherit;">
+    🚪 Выйти
+  </button>
+</form>
+    {% else %}
+      | <a href="{% url 'login' %}">🔒 Войти</a> |
+        <a href="{% url 'register' %}">✍️ Регистрация</a>
+    {% endif %}
+  </nav>
+
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>
+

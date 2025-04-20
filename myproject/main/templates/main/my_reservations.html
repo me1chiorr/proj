@@ -1,0 +1,25 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+  <h2>Мои бронирования</h2>
+  <ul>
+    {% for r in reservations %}
+      <li>
+        <strong>{{ r.table.restaurant.name }}</strong>,
+        Стол №{{ r.table.number }} —
+        {{ r.date }} в {{ r.time }}
+        <form method="post"
+              action="{% url 'cancel_reservation' r.pk %}"
+              style="display:inline">
+          {% csrf_token %}
+          <button type="submit"
+                  onclick="return confirm('Отменить бронь?');">
+            Отменить
+          </button>
+        </form>
+      </li>
+    {% empty %}
+      <li>У вас пока нет бронирований.</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
