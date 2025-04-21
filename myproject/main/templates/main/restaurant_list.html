@@ -1,12 +1,50 @@
 {% extends 'main/base.html' %}
+{% block title %}Рестораны{% endblock %}
 
 {% block content %}
-    <h2>Список ресторанов</h2>
-    <ul>
-        {% for restaurant in restaurants %}
-            <li><strong>{{ restaurant.name }}</strong> — {{ restaurant.address }}</li>
-        {% empty %}
-            <li>Нет ресторанов для отображения</li>
-        {% endfor %}
-    </ul>
+  <h1>Рестораны</h1>
+
+  <div id="map" style="height:400px; margin-bottom:2em;"></div>
+
+  <h2>Из 2ГИС</h2>
+  <ul>
+    {% for r in external_restaurants %}
+      <li>
+        <strong>{{ r.name }}</strong><br>
+        {{ r.address }}<br>
+        {{ r.phone }}<br>
+        {{ r.hours }}
+      </li>
+    {% empty %}
+      <li>Ничего не найдено.</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Местные рестораны</h2>
+  <ul>
+    {% for r in local_restaurants %}
+      <li><strong>{{ r.name }}</strong> — {{ r.address }}</li>
+    {% empty %}
+      <li>Пока нет ни одного.</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full"></script>
+  <script>
+    DG.then(function() {
+      var map = DG.map('map', {
+        center: [43.238949, 76.889709],
+        zoom: 13
+      });
+      {% for r in external_restaurants %}
+        DG.marker([{{ r.lat }}, {{ r.lon }}])
+          .addTo(map)
+          .bindPopup(
+            '<b>{{ r.name }}</b><br>{{ r.address }}'
+          );
+      {% endfor %}
+    });
+  </script>
 {% endblock %}

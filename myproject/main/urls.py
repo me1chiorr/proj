@@ -6,6 +6,9 @@ from .views import ReservationListCreateAPI
 from .views import ReservationListCreateAPI, RestaurantListAPI
 from .views import my_reservations
 from .views import cancel_reservation
+
+from .views import restaurant_list
+
 urlpatterns = [
     path('', views.home, name='home'),
     path('restaurants/', views.restaurant_list, name='restaurant_list'),
