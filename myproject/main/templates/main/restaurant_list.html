@@ -1,50 +1,116 @@
 {% extends 'main/base.html' %}
+
 {% block title %}Рестораны{% endblock %}
 
 {% block content %}
-  <h1>Рестораны</h1>
+<div class="container py-4">
+  <h1 class="mb-4">Рестораны</h1>
 
-  <div id="map" style="height:400px; margin-bottom:2em;"></div>
+  {# === Поиск === #}
+  <form method="get" class="mb-4">
+    <div class="input-group">
+      <input
+        type="text"
+        name="q"
+        value="{{ search_query }}"
+        class="form-control"
+        placeholder="Поиск по названию или адресу…"
+      >
+      <button class="btn btn-outline-secondary" type="submit">🔍</button>
+    </div>
+  </form>
 
-  <h2>Из 2ГИС</h2>
-  <ul>
-    {% for r in external_restaurants %}
-      <li>
-        <strong>{{ r.name }}</strong><br>
-        {{ r.address }}<br>
-        {{ r.phone }}<br>
-        {{ r.hours }}
-      </li>
+  {# === Карточки ресторанов === #}
+  <div class="row g-4">
+    {% for r in restaurants %}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm">
+          {% if r.avatar_url %}
+            <img
+              src="{{ r.avatar_url }}"
+              class="card-img-top"
+              style="height:180px; object-fit:cover;"
+              alt="{{ r.name }} логотип"
+            >
+          {% else %}
+            <div
+              class="card-img-top bg-secondary text-white d-flex align-items-center justify-content-center"
+              style="height:180px;"
+            >
+              Нет фото
+            </div>
+          {% endif %}
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title">
+              <a href="{% url 'restaurant_detail' r.id %}">{{ r.name }}</a>
+            </h5>
+            <p class="card-text mb-1"><strong>Адрес:</strong> {{ r.address }}</p>
+            {% if r.phone %}
+              <p class="card-text mb-1"><strong>Телефон:</strong> {{ r.phone }}</p>
+            {% endif %}
+            {% if r.hours %}
+              <p class="card-text text-muted small mb-3">
+                <strong>Часы:</strong> {{ r.hours }}
+              </p>
+            {% endif %}
+            <a
+              href="{% url 'reserve' %}?restaurant={{ r.id }}"
+              class="btn btn-primary mt-auto"
+            >
+              ➕ Забронировать
+            </a>
+          </div>
+        </div>
+      </div>
     {% empty %}
-      <li>Ничего не найдено.</li>
+      <div class="col-12">
+        <p class="text-center">Ничего не найдено.</p>
+      </div>
     {% endfor %}
-  </ul>
+  </div>
 
-  <h2>Местные рестораны</h2>
-  <ul>
-    {% for r in local_restaurants %}
-      <li><strong>{{ r.name }}</strong> — {{ r.address }}</li>
-    {% empty %}
-      <li>Пока нет ни одного.</li>
-    {% endfor %}
-  </ul>
-{% endblock %}
+  {# === Пагинация === #}
+  {% if restaurants.has_other_pages %}
+    <nav aria-label="Page navigation" class="mt-4">
+      <ul class="pagination justify-content-center">
 
-{% block extra_js %}
-  <script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full"></script>
-  <script>
-    DG.then(function() {
-      var map = DG.map('map', {
-        center: [43.238949, 76.889709],
-        zoom: 13
-      });
-      {% for r in external_restaurants %}
-        DG.marker([{{ r.lat }}, {{ r.lon }}])
-          .addTo(map)
-          .bindPopup(
-            '<b>{{ r.name }}</b><br>{{ r.address }}'
-          );
-      {% endfor %}
-    });
-  </script>
+        {# «Назад» #}
+        {% if restaurants.has_previous %}
+          <li class="page-item">
+            <a
+              class="page-link"
+              href="?q={{ search_query }}&page={{ restaurants.previous_page_number }}"
+            >&laquo;</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+        {% endif %}
+
+        {# Номера страниц #}
+        {% for i in restaurants.paginator.page_range %}
+          <li class="page-item {% if restaurants.number == i %}active{% endif %}">
+            <a
+              class="page-link"
+              href="?q={{ search_query }}&page={{ i }}"
+            >{{ i }}</a>
+          </li>
+        {% endfor %}
+
+        {# «Вперёд» #}
+        {% if restaurants.has_next %}
+          <li class="page-item">
+            <a
+              class="page-link"
+              href="?q={{ search_query }}&page={{ restaurants.next_page_number }}"
+            >&raquo;</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+        {% endif %}
+
+      </ul>
+    </nav>
+  {% endif %}
+
+</div>
 {% endblock %}

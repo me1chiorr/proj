@@ -1,0 +1,72 @@
+{% extends 'main/base.html' %}
+{% block title %}Мой профиль{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-8 offset-md-2">
+
+    <h2 class="mb-4">Добро пожаловать, {{ request.user.username }}!</h2>
+
+    <!-- === Будущие бронирования === -->
+    <h4>Будущие брони ({{ upcoming.count }})</h4>
+    {% if upcoming %}
+      <ul class="list-group mb-4">
+        {% for r in upcoming %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ r.table.restaurant.name }}</strong><br>
+              {{ r.date|date:"d.m.Y" }} в {{ r.time|time:"H:i" }}
+            </div>
+            <form method="post" action="{% url 'cancel_reservation' r.pk %}">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger"
+                      onclick="return confirm('Отменить бронь?');">
+                Отменить
+              </button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">Нет предстоящих броней.</p>
+    {% endif %}
+
+    <!-- === Прошедшие бронирования === -->
+    <h4>Прошедшие брони ({{ past.count }})</h4>
+    {% if past %}
+      <ul class="list-group mb-4">
+        {% for r in past %}
+          <li class="list-group-item">
+            <strong>{{ r.table.restaurant.name }}</strong> —
+            {{ r.date|date:"d.m.Y" }} в {{ r.time|time:"H:i" }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">Нет прошлых броней.</p>
+    {% endif %}
+
+    <!-- === Мои отзывы === -->
+    <h4>Отзывы ({{ my_reviews.count }})</h4>
+    {% if my_reviews %}
+      <ul class="list-group mb-4">
+        {% for rv in my_reviews %}
+          <li class="list-group-item">
+            <a href="{% url 'restaurant_detail' rv.restaurant.pk %}">
+              {{ rv.restaurant.name }}
+            </a><br>
+            <span class="text-warning">{{ rv.rating }} ★</span>
+            <small class="text-muted">{{ rv.created_at|date:"d.m.Y H:i" }}</small>
+            {% if rv.comment %}
+              <p class="mt-2 mb-0">{{ rv.comment }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">Нет оставленных отзывов.</p>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

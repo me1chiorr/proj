@@ -1,22 +1,75 @@
-# main/views.py
-
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-import requests
+from django.db.models import Q
+from django.shortcuts import render, redirect, get_object_or_404
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.utils import timezone
+from rest_framework import generics
+from datetime import date
 
-from rest_framework import generics, permissions
-
-from .models import Restaurant, Table, Reservation
-from .forms import ReservationForm, CustomUserCreationForm
+from .models import Restaurant, Table, Reservation, Review
+from .forms import ReservationForm, CustomUserCreationForm, ReviewForm
 from .serializers import RestaurantSerializer, ReservationSerializer
 from .views_external import external_restaurants
+from .permissions import IsAuthenticated401
+from datetime import date
+import re
+from datetime import date, timedelta
 
 
-def index(request):
-    return render(request, 'main/index.html')
+
+def account_dashboard(request):
+    # При заходе сразу перенаправляем на «Мои брони»
+    return redirect('account_bookings')
+
+
+
+@login_required
+def account_bookings(request):
+    today    = timezone.localdate()
+    upcoming = Reservation.objects.filter(
+                   user=request.user,
+                   date__gte=today
+               ).order_by('date','time')
+    past     = Reservation.objects.filter(
+                   user=request.user,
+                   date__lt =today
+               ).order_by('-date','-time')
+    return render(request, 'account/bookings.html', {
+        'upcoming': upcoming,
+        'past':     past,
+    })
+@login_required
+def account_reviews(request):
+    my_reviews = Review.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'account/reviews.html', {
+        'reviews': my_reviews,
+    })
+@login_required
+def account_profile(request):
+    # просто показываем request.user.username и email,
+    # тут же можно будет добавить форму редактирования
+    return render(request, 'account/profile.html', {
+        'user': request.user,
+    })
+
+@login_required
+def account_settings(request):
+    # сюда будем выводить формы уведомлений, смены пароля и т.п.
+    return render(request, 'account/settings.html', {})
+
+
+
+
+@login_required
+def account_favorites(request):
+    # предполагаем, что в модели Restaurant есть M2M-поле `favorited_by`
+    favorites = request.user.favorite_restaurants.all()
+    return render(request, 'account/favorites.html', {
+        'favorites': favorites,
+    })
 
 
 def home(request):
@@ -24,34 +77,157 @@ def home(request):
 
 
 def about(request):
-    return HttpResponse('')
+    return render(request, 'main/about.html')
 
 
 def restaurant_list(request):
-    # локальные рестораны из БД
-    local_restaurants = Restaurant.objects.all()
-    # внешние рестораны из 2ГИС
-    external = external_restaurants()
+    # 1) Синхронизируем поля из 2ГИС
+    external = external_restaurants(limit=50)
+    for ext in external:
+        obj, created = Restaurant.objects.update_or_create(
+            name=ext['name'],
+            defaults={
+                'address'         : ext['address'],
+                'address_comment' : ext['address_comment'],
+                'phone'           : ext['phone'],
+                'hours'           : ext['hours'],
+                'website'         : ext['website'],
+                'rating'          : ext['rating'],
+                'purpose_name'    : ext['purpose_name'],
+                'type'            : ext['type'],
+                'is_24x7'         : ext['is_24x7'],
+                'avatar_url'      : ext['avatar_url'],
+                'lat'             : ext['lat'],
+                'lon'             : ext['lon'],
+            }
+        )
+        if created or obj.tables.count() == 0:
+            for i in range(1, 11):
+                Table.objects.create(restaurant=obj, number=i, seats=4)
 
-    # **ВАЖНО** — именно здесь мы **возвращаем** результат!
+    # 2) Фильтрация и пагинация
+    qs = Restaurant.objects.all().order_by('name')
+    q = request.GET.get('q','').strip()
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(address__icontains=q))
+    paginator = Paginator(qs, 9)
+    page = request.GET.get('page',1)
+    try:
+        restaurants = paginator.page(page)
+    except (PageNotAnInteger, EmptyPage):
+        restaurants = paginator.page(1)
+
     return render(request, 'main/restaurant_list.html', {
-        'local_restaurants':    local_restaurants,
-        'external_restaurants': external,
-        'dgis_api_key':         settings.DGIS_API_KEY,  # понадобится в JS-карте
+        'restaurants':  restaurants,
+        'search_query': q,
+        'dgis_api_key': settings.DGIS_API_KEY,
+    })
+
+from datetime import datetime, date, time, timedelta
+from django.utils import timezone
+
+from .models import Restaurant, Reservation
+from .forms import ReservationForm
+import re
+from datetime import datetime, date, time, timedelta
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from .models import Restaurant, Reservation
+from .forms import ReservationForm
+
+
+
+
+
+
+@login_required
+def make_reservation(request):
+    rest_id = request.GET.get('restaurant') or request.POST.get('restaurant')
+    if not rest_id:
+        messages.warning(request, "Сначала выберите ресторан.")
+        return redirect('restaurant_list')
+
+    restaurant = get_object_or_404(Restaurant, pk=rest_id)
+
+    # Распарсим часы работы
+    hours_text = restaurant.hours or ""
+    m = re.search(r'(\d{1,2}:\d{2})[–-](\d{1,2}:\d{2})', hours_text)
+    if m:
+        start_str, end_str = m.group(1), m.group(2)
+        if end_str == '24:00':
+            end_str = '23:59'  # безопасная замена
+        work_start = datetime.strptime(start_str, '%H:%M').time()
+        work_end = datetime.strptime(end_str, '%H:%M').time()
+    else:
+        work_start, work_end = time(10, 0), time(22, 0)
+
+    today = date.today()
+    max_date = today + timedelta(days=30)
+    date_options = [today + timedelta(days=i) for i in range(7)]
+    selected_date = request.POST.get('date') or request.GET.get('date')
+    if selected_date == today.isoformat():
+        now = datetime.now()
+        mins = ((now.minute + 14) // 15) * 15
+        h, m = now.hour + mins // 60, mins % 60
+        rounded = time(h, m)
+        min_time = max(rounded, work_start)
+    else:
+        min_time = work_start
+
+    end_limit = (datetime.combine(today, work_end) - timedelta(hours=2)).time()
+    max_time = end_limit
+
+    slots = []
+    dt_cursor = datetime.combine(today, min_time)
+    dt_end    = datetime.combine(today, max_time)
+    while dt_cursor <= dt_end:
+        slots.append(dt_cursor.time().strftime('%H:%M'))
+        dt_cursor += timedelta(minutes=15)
+
+    if request.method == 'POST':
+        form = ReservationForm(request.POST, restaurant_id=rest_id)
+        if form.is_valid():
+            r = form.save(commit=False)
+            r.user = request.user
+            r.end_time = (datetime.combine(r.date, r.time) + timedelta(hours=2)).time()
+
+            taken_ids = Reservation.objects.filter(
+                date=r.date, time=r.time, table__restaurant=restaurant
+            ).values_list('table_id', flat=True)
+            free = restaurant.tables.exclude(id__in=taken_ids).first()
+            if not free:
+                messages.error(request, "Извините, свободных столов нет на это время.")
+                return redirect(f'/reserve/?restaurant={restaurant.pk}')
+
+            r.table = free
+            r.save()
+            messages.success(request, "\U0001F389 Бронь создана успешно!")
+            return redirect('my_reservations')
+        else:
+            messages.error(request, "Проверьте данные формы.")
+    else:
+        form = ReservationForm(restaurant_id=rest_id)
+
+    guests_options = list(range(1, 7))
+    return render(request, 'main/reservation_form.html', {
+        'restaurant': restaurant,
+        'form': form,
+        'guests_options': guests_options,
+        'date_options': date_options,
+        'time_slots': slots,
+        'work_start': work_start.strftime('%H:%M'),
+        'work_end': work_end.strftime('%H:%M'),
+        'today_iso': today.isoformat(),
+        'max_date_iso': max_date.isoformat(),
     })
 
 
-def make_reservation(request):
-    if request.method == 'POST':
-        form = ReservationForm(request.POST)
-        if form.is_valid():
-            reservation = form.save(commit=False)
-            reservation.user = request.user
-            reservation.save()
-            return redirect('home')
-    else:
-        form = ReservationForm()
-    return render(request, 'main/reservation_form.html', {'form': form})
+
+
+
+
+
 
 
 def register(request):
@@ -60,11 +236,90 @@ def register(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
+            messages.success(request, "✅ Регистрация прошла успешно!")
             return redirect('home')
+        else:
+            messages.error(request, "Проверьте данные регистрации.")
     else:
         form = CustomUserCreationForm()
     return render(request, 'main/register.html', {'form': form})
 
+
+def restaurant_detail(request, pk):
+    restaurant = get_object_or_404(Restaurant, pk=pk)
+
+    # свободные столы на сегодня
+    today = timezone.localdate()
+    reserved = Reservation.objects.filter(
+        date=today, table__restaurant=restaurant
+    ).values_list('table_id', flat=True)
+    available_tables = restaurant.tables.exclude(id__in=reserved)
+
+    # последние 3 отзыва
+    reviews = restaurant.reviews.order_by('-created_at')[:3]
+
+    # форма отзыва
+    form = ReviewForm(request.POST or None)
+    if request.method=='POST' and 'review_submit' in request.POST:
+        if not request.user.is_authenticated:
+            messages.error(request, "Нужно войти, чтобы оставить отзыв.")
+            return redirect('login')
+        if form.is_valid():
+            rev = form.save(commit=False)
+            rev.user = request.user
+            rev.restaurant = restaurant
+            rev.save()
+            messages.success(request, "Спасибо за отзыв!")
+            return redirect('restaurant_detail', pk=pk)
+        else:
+            messages.error(request, "Проверьте форму отзыва.")
+
+    return render(request, 'main/restaurant_detail.html', {
+        'restaurant': restaurant,
+        'today': today,
+        'available_tables': available_tables,
+        'reviews': reviews,
+        'form': form,
+    })
+
+@login_required
+def profile(request):
+    user = request.user
+    upcoming = user.reservations.filter(date__gte=date.today()).order_by('date','time')
+    past     = user.reservations.filter(date__lt =date.today()).order_by('-date','-time')
+    return render(request, 'main/profile.html', {
+        'upcoming': upcoming,
+        'past':     past,
+    })
+
+from django.shortcuts import redirect
+
+@login_required
+def toggle_favorite(request, pk):
+    rest = get_object_or_404(Restaurant, pk=pk)
+    if request.user in rest.favorited_by.all():
+        rest.favorited_by.remove(request.user)
+    else:
+        rest.favorited_by.add(request.user)
+    return redirect(request.META.get('HTTP_REFERER','restaurant_detail'))
+
+
+@login_required
+def my_reservations(request):
+    res = Reservation.objects.filter(user=request.user).order_by('-date','-time')
+    return render(request, 'main/my_reservations.html', {'reservations':res})
+
+
+@login_required
+def cancel_reservation(request, pk):
+    r = get_object_or_404(Reservation, pk=pk, user=request.user)
+    if request.method=='POST':
+        r.delete()
+        messages.success(request, "✅ Бронь отменена.")
+    return redirect('my_reservations')
+
+
+# ——— API ——————————————————————————————
 
 class RestaurantListAPI(generics.ListAPIView):
     queryset = Restaurant.objects.all()
@@ -73,28 +328,68 @@ class RestaurantListAPI(generics.ListAPIView):
 
 class ReservationListCreateAPI(generics.ListCreateAPIView):
     serializer_class   = ReservationSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
+    permission_classes = [IsAuthenticated401]
     def get_queryset(self):
         return Reservation.objects.filter(user=self.request.user)
-
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
-@login_required
-def my_reservations(request):
-    reservations = (Reservation.objects
-                    .filter(user=request.user)
-                    .order_by('-date', '-time'))
-    return render(request, 'main/my_reservations.html', {
-        'reservations': reservations
-    })
-
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from .forms import ProfileForm, UserEmailForm, CustomPasswordChangeForm
 
 @login_required
-def cancel_reservation(request, pk):
-    reservation = get_object_or_404(Reservation, pk=pk, user=request.user)
+def profile_settings(request):
+    profile_form = ProfileForm(request.POST, request.FILES, instance=request.user.profile)
+    email_form   = UserEmailForm(request.POST or None, initial={'email': request.user.email})
+    pwd_form     = CustomPasswordChangeForm(user=request.user, data=request.POST or None)
+
     if request.method == 'POST':
-        reservation.delete()
-    return redirect('my_reservations')
+        if 'save_profile' in request.POST and profile_form.is_valid():
+            profile_form.save()
+            messages.success(request, "Аватар обновлён.")
+            return redirect('profile_settings')
+
+        if 'save_email' in request.POST and email_form.is_valid():
+            request.user.email = email_form.cleaned_data['email']
+            request.user.save()
+            messages.success(request, "Email обновлён.")
+            return redirect('profile_settings')
+
+        if 'change_password' in request.POST and pwd_form.is_valid():
+            user = pwd_form.save()
+            update_session_auth_hash(request, user)
+            messages.success(request, "Пароль изменён.")
+            return redirect('profile_settings')
+
+    return render(request, 'main/profile_settings.html', {
+        'profile_form': profile_form,
+        'email_form':   email_form,
+        'pwd_form':     pwd_form,
+    })
+from django.http import JsonResponse
+from django.utils import timezone
+
+def available_tables_api(request):
+    """
+    Возвращает JSON-список свободных столов для ресторана на дату+время.
+    GET-параметры:
+      - restaurant (ID ресторана)
+      - date (YYYY-MM-DD)
+      - time (HH:MM)
+    """
+    rest_id = request.GET.get('restaurant')
+    date = request.GET.get('date')
+    time = request.GET.get('time')
+    if not (rest_id and date and time):
+        return JsonResponse({'error': 'Не указан restaurant/date/time'}, status=400)
+
+    # получаем ресторан и занятые столы
+    from .models import Restaurant, Reservation
+    restaurant = get_object_or_404(Restaurant, pk=rest_id)
+    reserved = Reservation.objects.filter(date=date, time=time, table__restaurant=restaurant) \
+                                  .values_list('table_id', flat=True)
+    tables = restaurant.tables.exclude(id__in=reserved) \
+                  .values('id', 'number', 'seats')
+    return JsonResponse(list(tables), safe=False)

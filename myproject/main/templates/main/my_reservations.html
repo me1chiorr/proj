@@ -7,7 +7,7 @@
       <li>
         <strong>{{ r.table.restaurant.name }}</strong>,
         Стол №{{ r.table.number }} —
-        {{ r.date }} в {{ r.time }}
+        {{ r.date }} в {{ r.time }} (2 часа)
         <form method="post"
               action="{% url 'cancel_reservation' r.pk %}"
               style="display:inline">

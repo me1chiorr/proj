@@ -1,0 +1,128 @@
+{% extends 'main/base.html' %}
+{% load tz %}
+{% block title %}{{ restaurant.name }} — Детали{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1>{{ restaurant.name }}</h1>
+
+  {% if restaurant.avatar_url %}
+    <img src="{{ restaurant.avatar_url }}"
+         class="img-fluid rounded mb-3"
+         alt="{{ restaurant.name }} логотип">
+  {% endif %}
+
+  <div id="map-detail" style="height:300px; margin-bottom:1.5rem;"></div>
+
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <!-- Адрес -->
+      <p><strong>Адрес:</strong> {{restaurant.address }}</p>
+
+      <!-- Телефон -->
+      {% if restaurant.phone %}
+        <p><strong>Телефон:</strong>
+          <a href="tel:{{ restaurant.phone }}">{{restaurant.phone }}</a>
+        </p>
+      {% endif %}
+
+      <!-- Часы работы -->
+      {% if restaurant.hours %}
+        <p><strong>Часы работы:</strong> {{ restaurant.hours }}</p>
+      {% endif %}
+
+      <!-- Рейтинг -->
+      {% if restaurant.rating %}
+        <p><strong>Рейтинг:</strong> {{ restaurant.rating }} ★</p>
+      {% endif %}
+
+      <!-- Число столов и мест -->
+      <p>
+        <strong>Столов всего:</strong> {{ restaurant.table_count }}<br>
+        <strong>Мест всего:</strong> {{ restaurant.total_seats }}
+      </p>
+    </div>
+    <div class="col-md-6 text-end">
+      <a href="{% url 'reserve' %}?restaurant={{ restaurant.id }}"
+         class="btn btn-success">
+        ➕ Забронировать стол
+      </a>
+    </div>
+  </div>
+
+  <!-- Свободные столы -->
+  <h4>Свободные столы на {{ today|date:"d.m.Y" }}:</h4>
+  {% if available_tables %}
+    <ul class="list-group mb-4">
+      {% for table in available_tables %}
+        <li class="list-group-item">
+          Стол №{{ table.number }} — {{ table.seats }} мест
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Все столы на сегодня заняты.</p>
+  {% endif %}
+
+  <hr>
+  <!-- Отзывы -->
+  <h4>Отзывы ({{ restaurant.reviews.count }}):</h4>
+  {% if reviews %}
+    <ul class="list-group mb-4">
+      {% for r in reviews %}
+        <li class="list-group-item">
+          <strong>{{ r.user.username }}</strong>
+          <span class="text-warning">{{ r.rating }} ★</span>
+          <small class="text-muted">{{ r.created_at|date:"d.m.Y H:i" }}</small>
+          {% if r.comment %}
+            <p class="mt-2 mb-0">{{ r.comment }}</p>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Пока нет отзывов. Станьте первым!</p>
+  {% endif %}
+
+  <!-- Форма оставления отзыва -->
+  {% if user.is_authenticated %}
+    <div class="card card-body mb-4">
+      <h5>Оставить отзыв</h5>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="mb-3">
+          {{ form.rating.label_tag }}<br>
+          {{ form.rating }}<br>
+          {{ form.rating.errors }}
+        </div>
+        <div class="mb-3">
+          {{ form.comment.label_tag }}<br>
+          {{ form.comment }}<br>
+          {{ form.comment.errors }}
+        </div>
+        <button name="review_submit" class="btn btn-primary">
+          Отправить отзыв
+        </button>
+      </form>
+    </div>
+  {% else %}
+    <p><a href="{% url 'login' %}">Войдите</a>, чтобы оставить отзыв.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full"></script>
+<script>
+  DG.then(function(){
+    var map = DG.map('map-detail', {
+      center: [{{ restaurant.lat }}, {{ restaurant.lon }}],
+      zoom: 15
+    });
+    DG.marker([{{ restaurant.lat }}, {{ restaurant.lon }}])
+      .addTo(map)
+      .bindPopup('<b>{{ restaurant.name }}</b><br>{{ restaurant.address }}');
+  });
+</script>
+{% endblock %}

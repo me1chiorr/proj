@@ -1,0 +1,30 @@
+{% extends 'main/base.html' %}
+{% block title %}Настройки — {{ user.username }}{% endblock %}
+
+{% block content %}
+<h3>Настройки аккаунта</h3>
+
+<div class="row">
+  <div class="col-md-4">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ profile_form.as_p }}
+      <button name="save_profile" class="btn btn-primary">Сохранить аватар</button>
+    </form>
+  </div>
+  <div class="col-md-4">
+    <form method="post">
+      {% csrf_token %}
+      {{ email_form.as_p }}
+      <button name="save_email" class="btn btn-primary">Сохранить email</button>
+    </form>
+  </div>
+  <div class="col-md-4">
+    <form method="post">
+      {% csrf_token %}
+      {{ pwd_form.as_p }}
+      <button name="change_password" class="btn btn-primary">Сменить пароль</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -19,12 +19,15 @@ DGIS_REGION_ID = config('DGIS_REGION_ID', default='29')
 # Общие настройки Django
 # ------------------------------------------------------------------------------
 
-SECRET_KEY = 'django-insecure-wicuskm4csr*4-ul*=1#@*_$53z@8b-d)yyl^t!ir3mbool*f-'  # или вынеси в .env через config('SECRET_KEY')
+# Загружаем из .env
+from decouple import config
+SECRET_KEY = config('SECRET_KEY')
+DEBUG      = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
+# Локальное время для Алматы
+TIME_ZONE = 'Asia/Almaty'
+LOGIN_URL = '/accounts/login/'
 # ------------------------------------------------------------------------------
 # Приложения
 # ------------------------------------------------------------------------------
@@ -35,8 +38,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    'main',              # ваше приложение
+    'rest_framework.authtoken',
+    'django_filters',
+    'main.apps.MainConfig',
     'rest_framework',    # DRF
     'drf_yasg',          # Swagger / OpenAPI
 ]
@@ -135,3 +139,28 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Остальные дефолты
 # ------------------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ),
+}
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'restaurant-booking-cache',
+    }
+ }
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
