@@ -3,14 +3,11 @@ from django.conf import settings
 from django.core.cache import cache
 from collections import defaultdict
 
-# Порядок дней недели для группировки
 DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 def format_schedule(sch: dict) -> str:
-    # если есть готовый текст
     if 'text' in sch and sch['text']:
         return sch['text']
-    # иначе собираем по дням
     by_day = {}
     for day in DAY_NAMES:
         info = sch.get(day, {})
@@ -20,8 +17,6 @@ def format_schedule(sch: dict) -> str:
             by_day[day] = times
         else:
             by_day[day] = '—'
-
-    # группируем подряд идущие дни с одинаковым расписанием
     groups = []
     prev_t = None
     start = None
@@ -33,8 +28,6 @@ def format_schedule(sch: dict) -> str:
             start = day
             prev_t = t
         prev_day = day
-
-    # форматируем
     parts = []
     for a, b, t in groups:
         if not a or not b:
@@ -45,6 +38,22 @@ def format_schedule(sch: dict) -> str:
             parts.append(f"{a}–{b}: {t}")
     return '; '.join(parts)
 
+def get_yandex_coords(address: str) -> tuple:
+    url = 'https://geocode-maps.yandex.ru/1.x'
+    params = {
+        'apikey': settings.YANDEX_MAPS_API_KEY,
+        'geocode': address,
+        'format': 'json',
+        'results': 1,
+    }
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    try:
+        pos = response.json()['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['Point']['pos']
+        lon, lat = map(float, pos.split())
+        return (lat, lon)
+    except (IndexError, KeyError):
+        return (None, None)
 
 def external_restaurants(
     query: str='ресторан',
@@ -66,12 +75,12 @@ def external_restaurants(
     while len(results) < limit:
         sz = min(limit - len(results), batch)
         params = {
-            'q'         : query,
-            'point'     : f'{lon},{lat}',
-            'radius'    : radius,
-            'page_size' : sz,
-            'page'      : page,
-            'fields'    : (
+            'q': query,
+            'point': f'{lon},{lat}',
+            'radius': radius,
+            'page_size': sz,
+            'page': page,
+            'fields': (
                 'items.point,'
                 'items.address_name,'
                 'items.address_comment,'
@@ -83,7 +92,10 @@ def external_restaurants(
                 'items.type,'
                 'items.cover'
             ),
-            'key'       : settings.DGIS_API_KEY,
+            'key': settings.DGIS_API_KEY,
+            'has_site': 'true',
+            'has_photos': 'true',
+            'search_type': 'discovery',
         }
         resp = requests.get(url, params=params, timeout=5)
         resp.raise_for_status()
@@ -92,21 +104,33 @@ def external_restaurants(
             break
 
         for it in items:
+            name = it.get('name', '')
+            address = it.get('address_name', '')
+            coords = get_yandex_coords(address)
+
+            phones = it.get('phones')
+            website = (it.get('www') or [{}])[0].get('value', '')
+            rating = it.get('rating')
+            cover = (it.get('cover') or {}).get('url', '')
+
+            if not phones or not cover or not website or not rating:
+                print(f"[2GIS MISSING] {name}: phone={phones}, www={website}, rating={rating}, cover={cover}")
+
             sch = it.get('schedule') or {}
             results.append({
-                'name'           : it.get('name',''),
-                'address'        : it.get('address_name',''),
-                'address_comment': it.get('address_comment',''),
-                'phone'          : (it.get('phones') or [{}])[0].get('phone',''),
-                'hours'          : format_schedule(sch),
-                'is_24x7'        : sch.get('is_24x7', False),
-                'website'        : (it.get('www') or [{}])[0].get('value',''),
-                'rating'         : it.get('rating'),
-                'purpose_name'   : it.get('purpose_name',''),
-                'type'           : it.get('type',''),
-                'avatar_url'     : (it.get('cover') or {}).get('url',''),
-                'lat'            : (it.get('point') or {}).get('lat'),
-                'lon'            : (it.get('point') or {}).get('lon'),
+                'name': name,
+                'address': address,
+                'address_comment': it.get('address_comment', ''),
+                'phone': (phones or [{}])[0].get('phone', ''),
+                'hours': format_schedule(sch),
+                'is_24x7': sch.get('is_24x7', False),
+                'website': website,
+                'rating': rating,
+                'purpose_name': it.get('purpose_name', ''),
+                'type': it.get('type', ''),
+                'avatar_url': cover,
+                'lat': coords[0],
+                'lon': coords[1],
             })
 
         if len(items) < sz:

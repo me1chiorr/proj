@@ -164,3 +164,6 @@ CACHES = {
  }
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+YANDEX_MAPS_API_KEY = config("YANDEX_MAPS_API_KEY")
+

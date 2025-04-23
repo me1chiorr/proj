@@ -28,6 +28,7 @@ urlpatterns = [
     path('profile/', views.profile, name='profile'),
     path('profile/settings/', views.profile_settings, name='profile_settings'),
     path('api/available-tables/', views.available_tables_api, name='api_available_tables'),
+    path('api/update-restaurants/', views.update_restaurants, name='update_restaurants'),
 
     path('api/', include('main.api_urls')),  # ← API-мостик
 ]

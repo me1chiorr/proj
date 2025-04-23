@@ -81,46 +81,24 @@ def about(request):
 
 
 def restaurant_list(request):
-    # 1) Синхронизируем поля из 2ГИС
-    external = external_restaurants(limit=50)
-    for ext in external:
-        obj, created = Restaurant.objects.update_or_create(
-            name=ext['name'],
-            defaults={
-                'address'         : ext['address'],
-                'address_comment' : ext['address_comment'],
-                'phone'           : ext['phone'],
-                'hours'           : ext['hours'],
-                'website'         : ext['website'],
-                'rating'          : ext['rating'],
-                'purpose_name'    : ext['purpose_name'],
-                'type'            : ext['type'],
-                'is_24x7'         : ext['is_24x7'],
-                'avatar_url'      : ext['avatar_url'],
-                'lat'             : ext['lat'],
-                'lon'             : ext['lon'],
-            }
-        )
-        if created or obj.tables.count() == 0:
-            for i in range(1, 11):
-                Table.objects.create(restaurant=obj, number=i, seats=4)
+    qs = Restaurant.objects.exclude(lat__isnull=True, lon__isnull=True).order_by('name')
 
-    # 2) Фильтрация и пагинация
-    qs = Restaurant.objects.all().order_by('name')
-    q = request.GET.get('q','').strip()
+    q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(address__icontains=q))
+
     paginator = Paginator(qs, 9)
-    page = request.GET.get('page',1)
+    page = request.GET.get('page', 1)
     try:
         restaurants = paginator.page(page)
     except (PageNotAnInteger, EmptyPage):
         restaurants = paginator.page(1)
 
     return render(request, 'main/restaurant_list.html', {
-        'restaurants':  restaurants,
+        'restaurants': restaurants,
         'search_query': q,
         'dgis_api_key': settings.DGIS_API_KEY,
+        'yandex_maps_key': settings.YANDEX_MAPS_API_KEY,
     })
 
 from datetime import datetime, date, time, timedelta
@@ -128,7 +106,7 @@ from django.utils import timezone
 
 from .models import Restaurant, Reservation
 from .forms import ReservationForm
-import re
+
 from datetime import datetime, date, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -247,6 +225,7 @@ def register(request):
 
 def restaurant_detail(request, pk):
     restaurant = get_object_or_404(Restaurant, pk=pk)
+    print("Координаты:", restaurant.lat, restaurant.lon)
 
     # свободные столы на сегодня
     today = timezone.localdate()
@@ -280,6 +259,7 @@ def restaurant_detail(request, pk):
         'available_tables': available_tables,
         'reviews': reviews,
         'form': form,
+        'yandex_maps_key': settings.YANDEX_MAPS_API_KEY,
     })
 
 @login_required
@@ -393,3 +373,38 @@ def available_tables_api(request):
     tables = restaurant.tables.exclude(id__in=reserved) \
                   .values('id', 'number', 'seats')
     return JsonResponse(list(tables), safe=False)
+
+
+from django.views.decorators.http import require_POST
+from django.http import JsonResponse
+from .views_external import external_restaurants
+from .models import Restaurant, Table
+
+@require_POST
+def update_restaurants(request):
+    count = 0
+    external = external_restaurants(limit=50)
+    for ext in external:
+        obj, created = Restaurant.objects.update_or_create(
+            name=ext['name'],
+            defaults={
+                'address': ext['address'],
+                'address_comment': ext['address_comment'],
+                'phone': ext['phone'],
+                'hours': ext['hours'],
+                'website': ext['website'],
+                'rating': ext['rating'],
+                'purpose_name': ext['purpose_name'],
+                'type': ext['type'],
+                'is_24x7': ext['is_24x7'],
+                'avatar_url': ext['avatar_url'],
+                'lat': ext['lat'],
+                'lon': ext['lon'],
+            }
+        )
+        if created:
+            for i in range(1, 11):
+                Table.objects.create(restaurant=obj, number=i, seats=4)
+        count += 1
+
+    return JsonResponse({'message': f'Обновлено ресторанов: {count}'})
