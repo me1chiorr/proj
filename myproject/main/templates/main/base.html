@@ -15,6 +15,9 @@
 
   <!-- Ваши стили -->
   <link rel="stylesheet" href="{% static 'main/css/home.css' %}">
+
+
+
 </head>
 <body class="bg-light">
   <!-- Toast-контейнер -->
@@ -85,6 +88,14 @@
                     Мои брони
                   </a>
                 </li>
+                {% if user.owned_restaurants.exists %}
+                <li>
+                  <a class="dropdown-item" href="{% url 'restaurant_bookings' %}">
+                    📋 Брони моего ресторана
+                  </a>
+                </li>
+                {% endif %}
+
                 <li><hr class="dropdown-divider"></li>
                 <li>
                   <form method="post" action="{% url 'logout' %}" class="m-0">

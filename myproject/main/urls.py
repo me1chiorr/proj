@@ -25,10 +25,11 @@ urlpatterns = [
     path('favorite/<int:pk>/', views.toggle_favorite, name='toggle_favorite'),
     path('password_change/', auth_views.PasswordChangeView.as_view(), name='password_change'),
     path('password_change/done/', auth_views.PasswordChangeDoneView.as_view(), name='password_change_done'),
-    path('profile/', views.profile, name='profile'),
     path('profile/settings/', views.profile_settings, name='profile_settings'),
     path('api/available-tables/', views.available_tables_api, name='api_available_tables'),
     path('api/update-restaurants/', views.update_restaurants, name='update_restaurants'),
+    path('search-suggestions/', views.search_suggestions, name='search_suggestions'),
+    path('account/restaurant-bookings/', views.restaurant_bookings, name='restaurant_bookings'),
 
     path('api/', include('main.api_urls')),  # ← API-мостик
 ]

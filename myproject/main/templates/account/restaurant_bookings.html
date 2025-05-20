@@ -1,0 +1,35 @@
+{% extends 'main/base.html' %}
+{% block content %}
+<div class="container py-4">
+  <h2>Бронирования в моих ресторанах</h2>
+
+  {% if reservations %}
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Ресторан</th>
+          <th>Стол</th>
+          <th>Дата</th>
+          <th>Время</th>
+          <th>Гостей</th>
+          <th>Кто забронировал</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reservations %}
+        <tr>
+          <td>{{ r.table.restaurant.name }}</td>
+          <td>№{{ r.table.number }}</td>
+          <td>{{ r.date }}</td>
+          <td>{{ r.time }}</td>
+          <td>{{ r.guests }}</td>
+          <td>{{ r.user.username }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Пока нет бронирований.</p>
+  {% endif %}
+</div>
+{% endblock %}

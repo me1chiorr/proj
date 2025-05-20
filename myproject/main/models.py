@@ -12,13 +12,22 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"Профиль {self.user.username}"
-
+from django.contrib.auth import get_user_model
+User = get_user_model()
 class Restaurant(models.Model):
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='owned_restaurants',
+        null=True, blank=True
+    )
     favorited_by = models.ManyToManyField(
         User,
         related_name='favorite_restaurants',
         blank=True
     )
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_restaurants', null=True, blank=True)
+
     name            = models.CharField(max_length=100)
     address         = models.CharField(max_length=255)
     address_comment = models.CharField(max_length=100, blank=True)
@@ -78,7 +87,7 @@ class Reservation(models.Model):
         ordering = ['-date', '-time']
 
     def __str__(self):
-        return f"{self.user} → {self.table} @ {self.date} {self.time}–{self.end_time} ({self.guests} guests)"
+        return f"{self.user} → {self.table} @ {self.date} {self.time} ({self.guests} guests)"
 
 class Review(models.Model):
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='reviews')
